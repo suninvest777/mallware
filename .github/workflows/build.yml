@@ -288,6 +288,22 @@ jobs:
         [ -f "embedded_image.jpg" ] && echo "✓ embedded_image.jpg найден" || echo "✗ embedded_image.jpg НЕ найден!"
         [ -f "config.json" ] && echo "✓ config.json найден" || echo "✗ config.json НЕ найден!"
         
+        # Настраиваем переменные для autoconf
+        echo "=== Настройка переменных для autoconf ==="
+        export ACLOCAL_PATH="/usr/share/aclocal:$ACLOCAL_PATH"
+        echo "ACLOCAL_PATH установлен в: $ACLOCAL_PATH"
+        # Проверяем доступность макросов libtool
+        if command -v aclocal >/dev/null 2>&1; then
+          ACLOCAL_DIR=$(aclocal --print-ac-dir 2>/dev/null || echo "/usr/share/aclocal")
+          echo "Директория aclocal: $ACLOCAL_DIR"
+          if [ -d "$ACLOCAL_DIR" ]; then
+            echo "Проверяем наличие макросов libtool:"
+            ls "$ACLOCAL_DIR"/lt*.m4 2>/dev/null | head -3 || echo "Макросы libtool не найдены в $ACLOCAL_DIR"
+          fi
+        else
+          echo "aclocal не найден"
+        fi
+        
         # Собираем APK с подробным логированием
         echo "=== Начало сборки APK ==="
         BUILD_RESULT=0
