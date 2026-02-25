@@ -9,9 +9,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
-    env:
-      PATH: ${{ env.PATH }}:$HOME/.local/bin:/usr/bin:/usr/local/bin
-    
     steps:
     - uses: actions/checkout@v4
     
@@ -36,8 +33,6 @@ jobs:
     
     - name: Initialize Buildozer and Android SDK
       working-directory: ./ready_app
-      env:
-        PATH: ${{ env.PATH }}:$HOME/.local/bin:/usr/bin:/usr/local/bin
       run: |
         export PATH="$HOME/.local/bin:/usr/bin:/usr/local/bin:$PATH"
         # Проверяем наличие git
@@ -58,8 +53,6 @@ jobs:
     
     - name: Build APK
       working-directory: ./ready_app
-      env:
-        PATH: ${{ env.PATH }}:$HOME/.local/bin:/usr/bin:/usr/local/bin
       run: |
         export PATH="$HOME/.local/bin:/usr/bin:/usr/local/bin:$PATH"
         # Проверяем, что все инструменты доступны
