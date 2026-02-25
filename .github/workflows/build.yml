@@ -336,6 +336,15 @@ jobs:
           tail -20 /tmp/buildozer.log
         fi
         
+        # Проверяем генерацию .c файлов Cython (для диагностики)
+        echo "=== Проверка генерации .c файлов Cython ==="
+        if [ -d ".buildozer" ]; then
+          echo "Ищем сгенерированные .c файлы из .pyx:"
+          find .buildozer -name "*.c" -type f 2>/dev/null | grep -E "(jnius|cython)" | head -10 || echo ".c файлы не найдены"
+          echo "Ищем исходные .pyx файлы:"
+          find .buildozer -name "*.pyx" -type f 2>/dev/null | head -10 || echo ".pyx файлы не найдены"
+        fi
+        
         # Ищем созданный APK файл
         echo "=== Поиск созданного APK ==="
         echo "Текущая директория:"
