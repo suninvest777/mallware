@@ -21,18 +21,25 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y python3-pip git unzip openjdk-17-jdk build-essential libssl-dev libffi-dev python3-dev
+        # Проверяем, что git установлен
+        git --version
     
     - name: Install Python dependencies
       run: |
         pip3 install --user buildozer cython
         export PATH="$HOME/.local/bin:$PATH"
+        # Проверяем, что buildozer установлен
+        buildozer --version
     
     - name: Initialize Buildozer and Android SDK
       working-directory: ./ready_app
       env:
-        PATH: ${{ env.PATH }}:$HOME/.local/bin
+        PATH: ${{ env.PATH }}:$HOME/.local/bin:/usr/bin:/usr/local/bin
       run: |
-        export PATH="$HOME/.local/bin:$PATH"
+        export PATH="$HOME/.local/bin:/usr/bin:/usr/local/bin:$PATH"
+        # Проверяем наличие git
+        which git || (echo "Git not found!" && exit 1)
+        git --version
         # Инициализируем buildozer (скачает Android SDK автоматически)
         buildozer android update
         
