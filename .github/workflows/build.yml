@@ -309,18 +309,28 @@ jobs:
         python3 -c "import cython; print(f'Cython версия: {cython.__version__}')" || echo "ПРЕДУПРЕЖДЕНИЕ: Cython не доступен для Python"
         python3 -c "import jnius; print('pyjnius доступен')" 2>/dev/null || echo "pyjnius будет установлен buildozer"
         
-        # Применяем патч для pyjnius (если нужно)
+        # Собираем APK с подробным логированием
+        echo "=== Начало сборки APK ==="
+        
+        # Запускаем buildozer с перехватом вывода для применения патча при необходимости
+        BUILD_RESULT=0
+        
+        # Первый запуск - инициализация и установка зависимостей (если еще не сделано)
+        echo "=== Проверка инициализации buildozer ==="
+        if [ ! -d ".buildozer/android/platform" ]; then
+          echo "Инициализация buildozer..."
+          buildozer android update 2>&1 | tee /tmp/buildozer_init.log || true
+        fi
+        
+        # Применяем патч для pyjnius после установки зависимостей
         if [ -f "patch_pyjnius.sh" ]; then
           echo "=== Применение патча для pyjnius ==="
           chmod +x patch_pyjnius.sh
-          # Запускаем патч после того, как buildozer установит зависимости
-          # Но сначала инициализируем buildozer, чтобы найти установленный pyjnius
-          echo "Патч будет применен после установки зависимостей buildozer"
+          bash patch_pyjnius.sh || echo "Патч не применен (возможно, pyjnius еще не установлен или уже исправлен)"
         fi
         
-        # Собираем APK с подробным логированием
-        echo "=== Начало сборки APK ==="
-        BUILD_RESULT=0
+        # Основная сборка APK
+        echo "=== Сборка APK ==="
         buildozer android debug 2>&1 | tee /tmp/buildozer.log || BUILD_RESULT=$?
         
         # Проверяем результат сборки
