@@ -55,7 +55,24 @@ jobs:
         echo "601991b4f3c23035e0c25ecdbb92b3d1c4e5f6a7b" > "$SDK_PATH/licenses/android-sdk-license-6"
         
         # Инициализируем buildozer (скачает Android SDK автоматически)
-        buildozer android update
+        # Это скачает базовый SDK, но может не установить cmdline-tools
+        buildozer android update || echo "Buildozer update завершился с предупреждениями, продолжаем..."
+        
+        # Если SDK уже существует, устанавливаем cmdline-tools вручную
+        if [ -d "$SDK_PATH" ] && [ ! -d "$SDK_PATH/cmdline-tools" ]; then
+          echo "Устанавливаем cmdline-tools вручную..."
+          cd /tmp
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip || \
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip || \
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          if [ -f commandlinetools-*.zip ]; then
+            unzip -q commandlinetools-*.zip -d "$SDK_PATH"
+            mkdir -p "$SDK_PATH/cmdline-tools"
+            mv "$SDK_PATH/cmdline-tools" "$SDK_PATH/cmdline-tools-tmp" 2>/dev/null || true
+            mv "$SDK_PATH/cmdline-tools-tmp"/* "$SDK_PATH/cmdline-tools/latest" 2>/dev/null || true
+            rm -f commandlinetools-*.zip
+          fi
+        fi
         
         # Исправляем путь к sdkmanager для buildozer
         # Buildozer ищет sdkmanager в tools/bin/, но в новых версиях он в cmdline-tools/latest/bin/
