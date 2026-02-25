@@ -57,14 +57,42 @@ jobs:
         # Инициализируем buildozer (скачает Android SDK автоматически)
         buildozer android update
         
+        # Исправляем путь к sdkmanager для buildozer
+        # Buildozer ищет sdkmanager в tools/bin/, но в новых версиях он в cmdline-tools/latest/bin/
+        if [ -d "$SDK_PATH" ]; then
+          # Создаем структуру tools/bin если её нет
+          mkdir -p "$SDK_PATH/tools/bin"
+          
+          # Если cmdline-tools установлены, создаем симлинк
+          if [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "Создаем симлинк для sdkmanager..."
+            ln -sf "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" "$SDK_PATH/tools/bin/sdkmanager" || true
+            ln -sf "$SDK_PATH/cmdline-tools/latest/bin/avdmanager" "$SDK_PATH/tools/bin/avdmanager" || true
+            # Копируем также другие инструменты
+            if [ -d "$SDK_PATH/cmdline-tools/latest/lib" ]; then
+              cp -r "$SDK_PATH/cmdline-tools/latest/lib" "$SDK_PATH/tools/" 2>/dev/null || true
+            fi
+          fi
+          
+          # Проверяем, что sdkmanager доступен
+          if [ -f "$SDK_PATH/tools/bin/sdkmanager" ] || [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "sdkmanager найден"
+          else
+            echo "ОШИБКА: sdkmanager не найден ни в одном из путей!"
+            echo "Содержимое SDK:"
+            ls -la "$SDK_PATH" || true
+            exit 1
+          fi
+        fi
+        
         # Устанавливаем необходимые компоненты Android SDK
         if [ -d "$SDK_PATH" ]; then
-          # Находим sdkmanager
+          # Находим sdkmanager (приоритет: tools/bin для buildozer, затем cmdline-tools)
           SDKMANAGER=""
-          if [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
-            SDKMANAGER="$SDK_PATH/cmdline-tools/latest/bin/sdkmanager"
-          elif [ -f "$SDK_PATH/tools/bin/sdkmanager" ]; then
+          if [ -f "$SDK_PATH/tools/bin/sdkmanager" ]; then
             SDKMANAGER="$SDK_PATH/tools/bin/sdkmanager"
+          elif [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_PATH/cmdline-tools/latest/bin/sdkmanager"
           fi
           
           if [ -n "$SDKMANAGER" ]; then
