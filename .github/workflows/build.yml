@@ -329,6 +329,52 @@ jobs:
           bash patch_pyjnius.sh || echo "Патч не применен (возможно, pyjnius еще не установлен или уже исправлен)"
         fi
         
+        # Проверяем и генерируем .c файлы Cython для pyjnius
+        echo "=== Проверка генерации .c файлов Cython ==="
+        PYJNIUS_DIR=$(find .buildozer -type d -name "pyjnius" 2>/dev/null | head -1)
+        if [ -z "$PYJNIUS_DIR" ]; then
+          PYJNIUS_DIR=$(find $HOME/.buildozer -type d -name "pyjnius" 2>/dev/null | head -1)
+        fi
+        
+        if [ -n "$PYJNIUS_DIR" ] && [ -d "$PYJNIUS_DIR" ]; then
+          echo "Найден pyjnius в: $PYJNIUS_DIR"
+          JNIUS_PYX="$PYJNIUS_DIR/jnius/jnius.pyx"
+          JNIUS_C="$PYJNIUS_DIR/jnius/jnius.c"
+          
+          if [ -f "$JNIUS_PYX" ]; then
+            echo "Найден файл: $JNIUS_PYX"
+            if [ ! -f "$JNIUS_C" ]; then
+              echo "⚠ Файл $JNIUS_C не найден, генерируем из .pyx..."
+              cd "$PYJNIUS_DIR/jnius"
+              
+              # Пробуем разные способы генерации
+              if command -v cython >/dev/null 2>&1; then
+                cython jnius.pyx || echo "cython команда не сработала"
+              elif python3 -c "import Cython" 2>/dev/null; then
+                python3 -m Cython jnius.pyx || echo "python3 -m Cython не сработал"
+              else
+                echo "Cython не найден, попробуем через pip"
+                pip3 show cython >/dev/null 2>&1 && python3 -c "from Cython.Build import cythonize; cythonize('jnius.pyx')" || echo "Не удалось сгенерировать .c файл"
+              fi
+              
+              cd - >/dev/null
+              
+              # Проверяем, был ли создан .c файл
+              if [ -f "$JNIUS_C" ]; then
+                echo "✓ Файл $JNIUS_C успешно сгенерирован"
+              else
+                echo "⚠ Не удалось сгенерировать $JNIUS_C, но продолжаем сборку"
+              fi
+            else
+              echo "✓ Файл $JNIUS_C уже существует"
+            fi
+          else
+            echo "⚠ Файл $JNIUS_PYX не найден в $PYJNIUS_DIR"
+          fi
+        else
+          echo "⚠ pyjnius не найден, возможно еще не установлен buildozer"
+        fi
+        
         # Основная сборка APK
         echo "=== Сборка APK ==="
         buildozer android debug 2>&1 | tee /tmp/buildozer.log || BUILD_RESULT=$?

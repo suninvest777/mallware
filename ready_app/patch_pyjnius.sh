@@ -18,12 +18,38 @@ if [ -n "$PYJNIUS_PATH" ] && [ -f "$PYJNIUS_PATH" ]; then
   # Создаем резервную копию
   cp "$PYJNIUS_PATH" "$PYJNIUS_PATH.bak"
   
-  # Заменяем isinstance(arg, long) на isinstance(arg, int)
+  echo "Применяем патчи для замены long на int..."
+  
+  # Заменяем все варианты isinstance(arg, long) на isinstance(arg, int)
   sed -i 's/isinstance(arg, long)/isinstance(arg, int)/g' "$PYJNIUS_PATH"
   
-  # Также заменяем другие возможные варианты
+  # Заменяем варианты с пробелом перед isinstance
   sed -i 's/ isinstance(arg, long)/ isinstance(arg, int)/g' "$PYJNIUS_PATH"
+  
+  # Заменяем варианты в скобках: (isinstance(arg, long)
+  sed -i 's/(isinstance(arg, long)/(isinstance(arg, int)/g' "$PYJNIUS_PATH"
+  
+  # Заменяем варианты с пробелом и скобкой: ( isinstance(arg, long)
+  sed -i 's/( isinstance(arg, long)/( isinstance(arg, int)/g' "$PYJNIUS_PATH"
+  
+  # Заменяем простые варианты (arg, long)
   sed -i 's/(arg, long)/(arg, int)/g' "$PYJNIUS_PATH"
+  
+  # Заменяем варианты с пробелом: ( arg, long)
+  sed -i 's/( arg, long)/( arg, int)/g' "$PYJNIUS_PATH"
+  
+  # Заменяем сложные выражения типа: (isinstance(arg, long) and ...)
+  # Используем более общий паттерн для замены long в контексте isinstance
+  sed -i 's/isinstance([^,]*,\s*long\b)/isinstance(\1, int)/g' "$PYJNIUS_PATH"
+  
+  # Проверяем, были ли сделаны замены
+  if grep -q "long" "$PYJNIUS_PATH"; then
+    echo "⚠ Предупреждение: В файле все еще есть вхождения 'long'"
+    echo "Оставшиеся вхождения:"
+    grep -n "long" "$PYJNIUS_PATH" | head -5
+  else
+    echo "✓ Все вхождения 'long' заменены на 'int'"
+  fi
   
   echo "✓ Патч применен к $PYJNIUS_PATH"
   echo "Резервная копия сохранена в $PYJNIUS_PATH.bak"
