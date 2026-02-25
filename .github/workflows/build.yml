@@ -157,16 +157,24 @@ jobs:
             
             # Устанавливаем стабильную версию build-tools (не rc)
             # Пробуем установить 34.0.0, если не получится - 33.0.0
-            echo "Установка build-tools..."
+            echo "Установка build-tools и платформы android-33..."
             if $SDKMANAGER "build-tools;34.0.0" "platform-tools" "platforms;android-33"; then
-              echo "Build-tools 34.0.0 установлены"
+              echo "Build-tools 34.0.0 и платформа android-33 установлены"
             elif $SDKMANAGER "build-tools;33.0.0" "platform-tools" "platforms;android-33"; then
-              echo "Build-tools 33.0.0 установлены"
+              echo "Build-tools 33.0.0 и платформа android-33 установлены"
             elif $SDKMANAGER "build-tools;32.0.0" "platform-tools" "platforms;android-33"; then
-              echo "Build-tools 32.0.0 установлены"
+              echo "Build-tools 32.0.0 и платформа android-33 установлены"
             else
-              echo "ОШИБКА: Не удалось установить build-tools!"
+              echo "ОШИБКА: Не удалось установить build-tools или платформу!"
               exit 1
+            fi
+            
+            # Проверяем, что платформа android-33 установлена
+            if [ -d "$SDK_PATH/platforms/android-33" ]; then
+              echo "✓ Платформа android-33 установлена"
+            else
+              echo "ПРЕДУПРЕЖДЕНИЕ: Платформа android-33 не найдена, проверяем доступные:"
+              ls -la "$SDK_PATH/platforms/" 2>/dev/null || echo "Папка platforms не существует"
             fi
             
             # Проверяем, что build-tools установлены
@@ -230,6 +238,17 @@ jobs:
         # Проверяем buildozer.spec
         echo "=== Проверка buildozer.spec ==="
         cat buildozer.spec
+        echo ""
+        echo "=== Проверка настроек Android API ==="
+        grep "android.api" buildozer.spec || echo "android.api не найден в spec"
+        echo ""
+        echo "=== Проверка доступных платформ Android ==="
+        if [ -d "$SDK_PATH/platforms" ]; then
+          echo "Установленные платформы:"
+          ls -la "$SDK_PATH/platforms/"
+        else
+          echo "Папка platforms не найдена"
+        fi
         
         # Проверяем наличие всех необходимых файлов
         echo "=== Проверка файлов приложения ==="
@@ -244,11 +263,20 @@ jobs:
         
         # Проверяем результат сборки
         echo "=== Результат сборки: код выхода $BUILD_RESULT ==="
+        
+        # Проверяем лог на наличие ошибок (даже если код выхода 0)
+        if grep -qi "failed\|error\|Buildozer failed" /tmp/buildozer.log; then
+          echo "=== ОБНАРУЖЕНА ОШИБКА В ЛОГАХ ==="
+          BUILD_RESULT=1
+        fi
+        
         if [ $BUILD_RESULT -ne 0 ]; then
           echo "=== ОШИБКА СБОРКИ ==="
           echo "Последние 100 строк лога:"
           tail -100 /tmp/buildozer.log
           echo "=== Полный лог сохранен в /tmp/buildozer.log ==="
+          echo "=== Поиск ключевых слов ошибок ==="
+          grep -i "error\|failed\|exception" /tmp/buildozer.log | tail -20 || echo "Ключевые слова не найдены"
         else
           echo "=== Сборка завершена успешно ==="
           echo "Последние 20 строк лога:"
@@ -297,8 +325,15 @@ jobs:
           echo "Содержимое папки bin/ (если существует):"
           ls -la bin/ 2>/dev/null || echo "bin/ не существует"
           echo "=== Последние строки лога buildozer ==="
-          tail -30 /tmp/buildozer.log || echo "Лог недоступен"
+          tail -50 /tmp/buildozer.log || echo "Лог недоступен"
           echo "=== Код выхода buildozer: $BUILD_RESULT ==="
+          echo "=== Проверка наличия ошибок в логе ==="
+          if grep -qi "failed\|error" /tmp/buildozer.log; then
+            echo "Найдены ошибки в логе:"
+            grep -i "failed\|error" /tmp/buildozer.log | tail -10
+          fi
+          # Если buildozer завершился с ошибкой, не считаем это критичным, если APK не найден
+          # Но все равно выходим с ошибкой
           exit 1
         fi
     
