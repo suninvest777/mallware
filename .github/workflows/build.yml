@@ -20,8 +20,18 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-pip git unzip openjdk-17-jdk
-        pip3 install buildozer cython
+        sudo apt-get install -y python3-pip git unzip openjdk-17-jdk build-essential libssl-dev libffi-dev python3-dev
+        pip3 install --user buildozer cython
+        export PATH="$HOME/.local/bin:$PATH"
+    
+    - name: Initialize Buildozer
+      working-directory: ./ready_app
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        # Инициализируем buildozer и скачиваем Android SDK
+        buildozer android update || true
+        # Устанавливаем Android SDK компоненты
+        yes | $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.0" "platform-tools" "platforms;android-33" || true
     
     - name: Build APK
       working-directory: ./ready_app

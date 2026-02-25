@@ -10,3 +10,8 @@ requirements = python3,requests
 
 [android]
 permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
+android.ndk_path = 
+android.sdk_path = 
+android.api = 33
+android.minapi = 21
+android.ndk = 25b
