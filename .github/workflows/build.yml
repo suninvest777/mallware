@@ -304,6 +304,11 @@ jobs:
           echo "aclocal не найден"
         fi
         
+        # Проверяем наличие Cython перед сборкой
+        echo "=== Проверка Cython перед сборкой ==="
+        python3 -c "import cython; print(f'Cython версия: {cython.__version__}')" || echo "ПРЕДУПРЕЖДЕНИЕ: Cython не доступен для Python"
+        python3 -c "import jnius; print('pyjnius доступен')" 2>/dev/null || echo "pyjnius будет установлен buildozer"
+        
         # Собираем APK с подробным логированием
         echo "=== Начало сборки APK ==="
         BUILD_RESULT=0
