@@ -59,18 +59,39 @@ jobs:
         buildozer android update || echo "Buildozer update завершился с предупреждениями, продолжаем..."
         
         # Если SDK уже существует, устанавливаем cmdline-tools вручную
-        if [ -d "$SDK_PATH" ] && [ ! -d "$SDK_PATH/cmdline-tools" ]; then
+        if [ -d "$SDK_PATH" ] && [ ! -d "$SDK_PATH/cmdline-tools/latest" ]; then
           echo "Устанавливаем cmdline-tools вручную..."
           cd /tmp
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip || \
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip || \
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          # Пробуем скачать разные версии cmdline-tools
+          if ! wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
+             ! wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip; then
+            echo "Не удалось скачать cmdline-tools"
+            exit 1
+          fi
+          
           if [ -f commandlinetools-*.zip ]; then
-            unzip -q commandlinetools-*.zip -d "$SDK_PATH"
-            mkdir -p "$SDK_PATH/cmdline-tools"
-            mv "$SDK_PATH/cmdline-tools" "$SDK_PATH/cmdline-tools-tmp" 2>/dev/null || true
-            mv "$SDK_PATH/cmdline-tools-tmp"/* "$SDK_PATH/cmdline-tools/latest" 2>/dev/null || true
+            # Распаковываем во временную папку
+            TEMP_DIR=$(mktemp -d)
+            unzip -q commandlinetools-*.zip -d "$TEMP_DIR"
+            
+            # Создаем правильную структуру
+            mkdir -p "$SDK_PATH/cmdline-tools/latest"
+            
+            # Перемещаем содержимое распакованной папки в cmdline-tools/latest
+            # Распакованный архив содержит папку cmdline-tools с bin, lib и т.д.
+            if [ -d "$TEMP_DIR/cmdline-tools" ]; then
+              mv "$TEMP_DIR/cmdline-tools"/* "$SDK_PATH/cmdline-tools/latest/" 2>/dev/null || true
+            else
+              # Если структура другая, перемещаем все содержимое
+              mv "$TEMP_DIR"/* "$SDK_PATH/cmdline-tools/latest/" 2>/dev/null || true
+            fi
+            
+            # Очистка
+            rm -rf "$TEMP_DIR"
             rm -f commandlinetools-*.zip
+            
+            echo "cmdline-tools установлены в $SDK_PATH/cmdline-tools/latest"
+            ls -la "$SDK_PATH/cmdline-tools/latest/bin" || echo "Проверка содержимого cmdline-tools"
           fi
         fi
         
@@ -80,24 +101,43 @@ jobs:
           # Создаем структуру tools/bin если её нет
           mkdir -p "$SDK_PATH/tools/bin"
           
-          # Если cmdline-tools установлены, создаем симлинк
+          # Проверяем наличие cmdline-tools и создаем симлинк
           if [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
-            echo "Создаем симлинк для sdkmanager..."
-            ln -sf "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" "$SDK_PATH/tools/bin/sdkmanager" || true
+            echo "Найден sdkmanager в cmdline-tools, создаем симлинк..."
+            ln -sf "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" "$SDK_PATH/tools/bin/sdkmanager"
             ln -sf "$SDK_PATH/cmdline-tools/latest/bin/avdmanager" "$SDK_PATH/tools/bin/avdmanager" || true
             # Копируем также другие инструменты
             if [ -d "$SDK_PATH/cmdline-tools/latest/lib" ]; then
               cp -r "$SDK_PATH/cmdline-tools/latest/lib" "$SDK_PATH/tools/" 2>/dev/null || true
             fi
+            echo "Симлинк создан: $SDK_PATH/tools/bin/sdkmanager -> $SDK_PATH/cmdline-tools/latest/bin/sdkmanager"
+          elif [ -d "$SDK_PATH/cmdline-tools-tmp" ]; then
+            # Если осталась старая структура, исправляем её
+            echo "Исправляем структуру cmdline-tools..."
+            mkdir -p "$SDK_PATH/cmdline-tools/latest"
+            mv "$SDK_PATH/cmdline-tools-tmp"/* "$SDK_PATH/cmdline-tools/latest/" 2>/dev/null || true
+            rmdir "$SDK_PATH/cmdline-tools-tmp" 2>/dev/null || true
+            if [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
+              ln -sf "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" "$SDK_PATH/tools/bin/sdkmanager"
+              echo "Симлинк создан после исправления структуры"
+            fi
           fi
           
           # Проверяем, что sdkmanager доступен
-          if [ -f "$SDK_PATH/tools/bin/sdkmanager" ] || [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
-            echo "sdkmanager найден"
+          if [ -f "$SDK_PATH/tools/bin/sdkmanager" ]; then
+            echo "✓ sdkmanager найден в tools/bin/sdkmanager"
+            "$SDK_PATH/tools/bin/sdkmanager" --version || true
+          elif [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "✓ sdkmanager найден в cmdline-tools/latest/bin/sdkmanager"
+            "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" --version || true
+            # Создаем симлинк, если его еще нет
+            ln -sf "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" "$SDK_PATH/tools/bin/sdkmanager"
           else
             echo "ОШИБКА: sdkmanager не найден ни в одном из путей!"
             echo "Содержимое SDK:"
             ls -la "$SDK_PATH" || true
+            echo "Содержимое cmdline-tools:"
+            ls -la "$SDK_PATH/cmdline-tools" 2>/dev/null || echo "cmdline-tools не существует"
             exit 1
           fi
         fi
