@@ -33,4 +33,4 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: app-apk
-        path: simple_android_app/bin/*.apk
+        path: ready_app/bin/*.apk
