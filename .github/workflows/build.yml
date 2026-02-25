@@ -44,10 +44,38 @@ jobs:
         # Устанавливаем необходимые компоненты Android SDK
         SDK_PATH="$HOME/.buildozer/android/platform/android-sdk"
         if [ -d "$SDK_PATH" ]; then
-          # Устанавливаем build-tools через sdkmanager
+          # Находим sdkmanager
+          SDKMANAGER=""
           if [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | $SDK_PATH/cmdline-tools/latest/bin/sdkmanager --licenses || true
-            $SDK_PATH/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.0" "platform-tools" "platforms;android-33" || true
+            SDKMANAGER="$SDK_PATH/cmdline-tools/latest/bin/sdkmanager"
+          elif [ -f "$SDK_PATH/tools/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_PATH/tools/bin/sdkmanager"
+          fi
+          
+          if [ -n "$SDKMANAGER" ]; then
+            # Принимаем все лицензии автоматически
+            mkdir -p "$SDK_PATH/licenses"
+            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_PATH/licenses/android-sdk-license"
+            echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$SDK_PATH/licenses/android-sdk-preview-license"
+            echo "8403addf88ab4874007e1c1e80a0025de2550a16" > "$SDK_PATH/licenses/android-googletv-license"
+            echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$SDK_PATH/licenses/android-sdk-arm-dbt-license"
+            echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > "$SDK_PATH/licenses/google-gdk-license"
+            echo "d975f751698a77b662f1254ddbeed3901e976f5a" > "$SDK_PATH/licenses/intel-android-extra-license"
+            echo "e9acab5e5f1efb7a6c54c6850d6c4c78afd05907" > "$SDK_PATH/licenses/mips-android-sysimage-license"
+            
+            # Устанавливаем стабильную версию build-tools (не rc)
+            $SDKMANAGER "build-tools;34.0.0" "platform-tools" "platforms;android-33" || \
+            $SDKMANAGER "build-tools;33.0.0" "platform-tools" "platforms;android-33" || \
+            $SDKMANAGER "build-tools;32.0.0" "platform-tools" "platforms;android-33"
+            
+            # Проверяем, что build-tools установлены
+            if [ -d "$SDK_PATH/build-tools" ]; then
+              echo "Build-tools установлены:"
+              ls -la "$SDK_PATH/build-tools"
+            else
+              echo "ОШИБКА: Build-tools не установлены!"
+              exit 1
+            fi
           fi
         fi
     
@@ -59,6 +87,22 @@ jobs:
         which git
         which python3
         git --version
+        
+        # Проверяем, что build-tools установлены
+        SDK_PATH="$HOME/.buildozer/android/platform/android-sdk"
+        if [ -d "$SDK_PATH/build-tools" ]; then
+          echo "Build-tools найдены:"
+          ls -la "$SDK_PATH/build-tools"
+          # Добавляем build-tools в PATH
+          BUILD_TOOLS_DIR=$(ls -d "$SDK_PATH/build-tools"/* | head -1)
+          export PATH="$BUILD_TOOLS_DIR:$PATH"
+          echo "AIDL путь: $BUILD_TOOLS_DIR/aidl"
+          [ -f "$BUILD_TOOLS_DIR/aidl" ] && echo "AIDL найден!" || echo "AIDL не найден!"
+        else
+          echo "ОШИБКА: Build-tools не найдены!"
+          exit 1
+        fi
+        
         buildozer android debug
     
     - name: Upload APK
