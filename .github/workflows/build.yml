@@ -20,16 +20,24 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-pip git unzip openjdk-17-jdk build-essential libssl-dev libffi-dev python3-dev
+        sudo apt-get install -y python3-pip git unzip openjdk-17-jdk build-essential libssl-dev libffi-dev python3-dev libtool automake autoconf
         # Проверяем, что git установлен
         git --version
+        # Проверяем установку autotools
+        autoconf --version || echo "autoconf не найден"
+        automake --version || echo "automake не найден"
+        libtool --version || echo "libtool не найден"
     
     - name: Install Python dependencies
       run: |
         pip3 install --user buildozer cython
+        # Также устанавливаем cython системно для buildozer (использует системный Python)
+        sudo pip3 install cython || pip3 install --break-system-packages cython || echo "Попытка установить cython системно не удалась, продолжаем..."
         export PATH="$HOME/.local/bin:$PATH"
         # Проверяем, что buildozer установлен
         buildozer --version
+        # Проверяем, что cython доступен для системного Python
+        python3 -c "import cython; print(f'Cython версия: {cython.__version__}')" || echo "ПРЕДУПРЕЖДЕНИЕ: Cython не доступен для системного Python"
     
     - name: Initialize Buildozer and Android SDK
       working-directory: ./ready_app
@@ -240,12 +248,28 @@ jobs:
         cat buildozer.spec
         echo ""
         echo "=== Проверка настроек Android API ==="
-        grep "android.api" buildozer.spec || echo "android.api не найден в spec"
+        ANDROID_API=$(grep "android.api" buildozer.spec | cut -d'=' -f2 | tr -d ' ')
+        echo "Указанный API в buildozer.spec: $ANDROID_API"
+        if [ -z "$ANDROID_API" ]; then
+          echo "android.api не найден в spec, используем значение по умолчанию"
+          ANDROID_API=33
+        fi
+        echo "Будет использован API: $ANDROID_API"
+        # Устанавливаем переменную окружения для buildozer
+        export ANDROIDAPI=$ANDROID_API
+        echo "ANDROIDAPI установлен в: $ANDROIDAPI"
         echo ""
         echo "=== Проверка доступных платформ Android ==="
         if [ -d "$SDK_PATH/platforms" ]; then
           echo "Установленные платформы:"
           ls -la "$SDK_PATH/platforms/"
+          if [ -d "$SDK_PATH/platforms/android-$ANDROID_API" ]; then
+            echo "✓ Платформа android-$ANDROID_API найдена"
+          else
+            echo "✗ Платформа android-$ANDROID_API НЕ найдена!"
+            echo "Доступные платформы:"
+            ls -d "$SDK_PATH/platforms/android-"* 2>/dev/null | sed 's/.*android-/android-/' || echo "Платформы не найдены"
+          fi
         else
           echo "Папка platforms не найдена"
         fi
