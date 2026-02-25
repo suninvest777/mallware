@@ -29,12 +29,22 @@ jobs:
     
     - name: Initialize Buildozer and Android SDK
       working-directory: ./ready_app
+      env:
+        PATH: ${{ env.PATH }}:$HOME/.local/bin
       run: |
         export PATH="$HOME/.local/bin:$PATH"
         # Инициализируем buildozer (скачает Android SDK автоматически)
         buildozer android update
-        # Ждем завершения загрузки SDK
-        sleep 10
+        
+        # Устанавливаем необходимые компоненты Android SDK
+        SDK_PATH="$HOME/.buildozer/android/platform/android-sdk"
+        if [ -d "$SDK_PATH" ]; then
+          # Устанавливаем build-tools через sdkmanager
+          if [ -f "$SDK_PATH/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | $SDK_PATH/cmdline-tools/latest/bin/sdkmanager --licenses || true
+            $SDK_PATH/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.0" "platform-tools" "platforms;android-33" || true
+          fi
+        fi
     
     - name: Build APK
       working-directory: ./ready_app
