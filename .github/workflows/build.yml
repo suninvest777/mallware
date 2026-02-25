@@ -246,10 +246,50 @@ jobs:
           echo "=== Полный лог сохранен в /tmp/buildozer.log ==="
           exit 1
         }
+        
+        # Ищем созданный APK файл
+        echo "=== Поиск созданного APK ==="
+        echo "Текущая директория:"
+        pwd
+        echo "Поиск APK в текущей директории:"
+        find . -name "*.apk" -type f 2>/dev/null | head -10 || echo "APK не найден в текущей директории"
+        echo "Поиск APK в .buildozer:"
+        find $HOME/.buildozer -name "*.apk" -type f 2>/dev/null | head -10 || echo "APK не найден в .buildozer"
+        
+        # Проверяем стандартные пути
+        if [ -d "bin" ]; then
+          echo "APK файлы в bin/:"
+          ls -lah bin/*.apk 2>/dev/null || echo "APK не найден в bin/"
+        else
+          echo "Папка bin/ не существует"
+        fi
+        
+        # Сохраняем путь к APK в переменную окружения
+        APK_FILE=$(find . -name "*.apk" -type f | head -1)
+        if [ -z "$APK_FILE" ]; then
+          APK_FILE=$(find $HOME/.buildozer -name "*.apk" -type f 2>/dev/null | head -1)
+        fi
+        
+        if [ -n "$APK_FILE" ]; then
+          echo "✓ Найден APK: $APK_FILE"
+          # Сохраняем абсолютный путь
+          APK_ABS_PATH=$(realpath "$APK_FILE" 2>/dev/null || echo "$(pwd)/$APK_FILE")
+          echo "APK_PATH=$APK_ABS_PATH" >> $GITHUB_ENV
+          echo "APK сохранен в переменную APK_PATH: $APK_ABS_PATH"
+        else
+          echo "✗ ОШИБКА: APK файл не найден ни в одном из мест!"
+          echo "Ищем во всех возможных местах:"
+          find . -name "*.apk" -type f
+          find $HOME/.buildozer -name "*.apk" -type f 2>/dev/null
+          echo "Содержимое текущей директории:"
+          ls -la
+          exit 1
+        fi
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app-apk
-        path: ready_app/bin/*.apk
+        path: ${{ env.APK_PATH }}
+        if-no-files-found: error
         retention-days: 30
