@@ -20,13 +20,21 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-pip git unzip openjdk-17-jdk build-essential libssl-dev libffi-dev python3-dev libtool automake autoconf
+        sudo apt-get install -y python3-pip git unzip openjdk-17-jdk build-essential libssl-dev libffi-dev python3-dev libtool automake autoconf libltdl-dev pkg-config m4
         # Проверяем, что git установлен
         git --version
         # Проверяем установку autotools
         autoconf --version || echo "autoconf не найден"
         automake --version || echo "automake не найден"
         libtool --version || echo "libtool не найден"
+        # Проверяем установку дополнительных пакетов
+        pkg-config --version || echo "pkg-config не найден"
+        m4 --version || echo "m4 не найден"
+        # Проверяем наличие макросов libtool
+        if [ -d "/usr/share/aclocal" ]; then
+          echo "Макросы aclocal найдены в /usr/share/aclocal"
+          ls /usr/share/aclocal/*.m4 2>/dev/null | head -5 || echo "Файлы .m4 не найдены"
+        fi
     
     - name: Install Python dependencies
       run: |
