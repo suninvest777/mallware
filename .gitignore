@@ -1,0 +1,47 @@
+# Конфиденциальные данные
+config.json
+*.exe
+*.apk
+*.ipa
+
+# Временные файлы
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec.bak
+
+# Тестовые файлы
+test_*.exe
+test_*.jpg
+extracted_image.jpg
+final_*.jpg
+final_*.exe
+telegram_*.exe
+vacation_*.exe
+
+# Папки сборки
+android_package/
+test_android/
+test_ios/
+android_termux/
+android_termux_ready.zip
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
