@@ -239,13 +239,21 @@ jobs:
         
         # Собираем APK с подробным логированием
         echo "=== Начало сборки APK ==="
-        buildozer android debug 2>&1 | tee /tmp/buildozer.log || {
+        BUILD_RESULT=0
+        buildozer android debug 2>&1 | tee /tmp/buildozer.log || BUILD_RESULT=$?
+        
+        # Проверяем результат сборки
+        echo "=== Результат сборки: код выхода $BUILD_RESULT ==="
+        if [ $BUILD_RESULT -ne 0 ]; then
           echo "=== ОШИБКА СБОРКИ ==="
-          echo "Последние 50 строк лога:"
-          tail -50 /tmp/buildozer.log
+          echo "Последние 100 строк лога:"
+          tail -100 /tmp/buildozer.log
           echo "=== Полный лог сохранен в /tmp/buildozer.log ==="
-          exit 1
-        }
+        else
+          echo "=== Сборка завершена успешно ==="
+          echo "Последние 20 строк лога:"
+          tail -20 /tmp/buildozer.log
+        fi
         
         # Ищем созданный APK файл
         echo "=== Поиск созданного APK ==="
@@ -258,6 +266,8 @@ jobs:
         
         # Проверяем стандартные пути
         if [ -d "bin" ]; then
+          echo "=== Содержимое папки bin/ ==="
+          ls -lah bin/ || echo "Не удалось прочитать bin/"
           echo "APK файлы в bin/:"
           ls -lah bin/*.apk 2>/dev/null || echo "APK не найден в bin/"
         else
@@ -278,11 +288,17 @@ jobs:
           echo "APK сохранен в переменную APK_PATH: $APK_ABS_PATH"
         else
           echo "✗ ОШИБКА: APK файл не найден ни в одном из мест!"
+          echo "=== Диагностика ==="
           echo "Ищем во всех возможных местах:"
           find . -name "*.apk" -type f
           find $HOME/.buildozer -name "*.apk" -type f 2>/dev/null
           echo "Содержимое текущей директории:"
           ls -la
+          echo "Содержимое папки bin/ (если существует):"
+          ls -la bin/ 2>/dev/null || echo "bin/ не существует"
+          echo "=== Последние строки лога buildozer ==="
+          tail -30 /tmp/buildozer.log || echo "Лог недоступен"
+          echo "=== Код выхода buildozer: $BUILD_RESULT ==="
           exit 1
         fi
     
