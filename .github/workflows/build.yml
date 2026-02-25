@@ -24,7 +24,7 @@ jobs:
         pip3 install buildozer cython
     
     - name: Build APK
-      working-directory: ./simple_android_app
+      working-directory: ./ready_app
       run: |
         export PATH="$HOME/.local/bin:$PATH"
         buildozer android debug
