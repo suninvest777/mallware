@@ -197,13 +197,23 @@ jobs:
       working-directory: ./ready_app
       run: |
         export PATH="$HOME/.local/bin:/usr/bin:/usr/local/bin:$PATH"
+        
+        # Проверяем структуру проекта
+        echo "=== Проверка структуры проекта ==="
+        pwd
+        ls -la
+        echo "Файлы в ready_app:"
+        find . -type f -name "*.py" -o -name "*.json" -o -name "*.jpg" | head -20
+        
         # Проверяем, что все инструменты доступны
-        which git
-        which python3
-        git --version
+        echo "=== Проверка инструментов ==="
+        which git && git --version
+        which python3 && python3 --version
+        which buildozer && buildozer --version
         
         # Проверяем, что build-tools установлены
         SDK_PATH="$HOME/.buildozer/android/platform/android-sdk"
+        echo "=== Проверка Android SDK ==="
         if [ -d "$SDK_PATH/build-tools" ]; then
           echo "Build-tools найдены:"
           ls -la "$SDK_PATH/build-tools"
@@ -211,13 +221,31 @@ jobs:
           BUILD_TOOLS_DIR=$(ls -d "$SDK_PATH/build-tools"/* | head -1)
           export PATH="$BUILD_TOOLS_DIR:$PATH"
           echo "AIDL путь: $BUILD_TOOLS_DIR/aidl"
-          [ -f "$BUILD_TOOLS_DIR/aidl" ] && echo "AIDL найден!" || echo "AIDL не найден!"
+          [ -f "$BUILD_TOOLS_DIR/aidl" ] && echo "✓ AIDL найден!" || echo "✗ AIDL не найден!"
         else
           echo "ОШИБКА: Build-tools не найдены!"
           exit 1
         fi
         
-        buildozer android debug
+        # Проверяем buildozer.spec
+        echo "=== Проверка buildozer.spec ==="
+        cat buildozer.spec
+        
+        # Проверяем наличие всех необходимых файлов
+        echo "=== Проверка файлов приложения ==="
+        [ -f "app.py" ] && echo "✓ app.py найден" || echo "✗ app.py НЕ найден!"
+        [ -f "embedded_image.jpg" ] && echo "✓ embedded_image.jpg найден" || echo "✗ embedded_image.jpg НЕ найден!"
+        [ -f "config.json" ] && echo "✓ config.json найден" || echo "✗ config.json НЕ найден!"
+        
+        # Собираем APK с подробным логированием
+        echo "=== Начало сборки APK ==="
+        buildozer android debug 2>&1 | tee /tmp/buildozer.log || {
+          echo "=== ОШИБКА СБОРКИ ==="
+          echo "Последние 50 строк лога:"
+          tail -50 /tmp/buildozer.log
+          echo "=== Полный лог сохранен в /tmp/buildozer.log ==="
+          exit 1
+        }
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
