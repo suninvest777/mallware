@@ -208,14 +208,18 @@ def main():
         
         # Ищем изображение в разных местах
         possible_paths = [
+            "photo.jpg",  # Для готового приложения
             "embedded_image.jpg",
+            os.path.join(os.path.dirname(__file__), "photo.jpg"),
             os.path.join(os.path.dirname(__file__), "embedded_image.jpg"),
+            os.path.join(os.path.dirname(sys.executable) if hasattr(sys, 'frozen') else os.getcwd(), "photo.jpg"),
             os.path.join(os.path.dirname(sys.executable) if hasattr(sys, 'frozen') else os.getcwd(), "embedded_image.jpg"),
         ]
         
         # Для Android/iOS - в ресурсах приложения
         if hasattr(sys, '_MEIPASS'):
-            possible_paths.insert(0, os.path.join(sys._MEIPASS, "embedded_image.jpg"))
+            possible_paths.insert(0, os.path.join(sys._MEIPASS, "photo.jpg"))
+            possible_paths.insert(1, os.path.join(sys._MEIPASS, "embedded_image.jpg"))
         
         for path in possible_paths:
             if os.path.exists(path):
