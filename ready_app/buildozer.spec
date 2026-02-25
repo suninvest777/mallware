@@ -15,3 +15,4 @@ android.sdk_path =
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
+android.buildtools = 34.0.0

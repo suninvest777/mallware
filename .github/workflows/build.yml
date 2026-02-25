@@ -38,11 +38,26 @@ jobs:
         # Проверяем наличие git
         which git || (echo "Git not found!" && exit 1)
         git --version
+        
+        # Сначала создаем структуру SDK и принимаем лицензии
+        SDK_PATH="$HOME/.buildozer/android/platform/android-sdk"
+        mkdir -p "$SDK_PATH/licenses"
+        
+        # Принимаем все лицензии автоматически (до установки SDK)
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_PATH/licenses/android-sdk-license"
+        echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$SDK_PATH/licenses/android-sdk-preview-license"
+        echo "8403addf88ab4874007e1c1e80a0025de2550a16" > "$SDK_PATH/licenses/android-googletv-license"
+        echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$SDK_PATH/licenses/android-sdk-arm-dbt-license"
+        echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > "$SDK_PATH/licenses/google-gdk-license"
+        echo "d975f751698a77b662f1254ddbeed3901e976f5a" > "$SDK_PATH/licenses/intel-android-extra-license"
+        echo "e9acab5e5f1efb7a6c54c6850d6c4c78afd05907" > "$SDK_PATH/licenses/mips-android-sysimage-license"
+        echo "d56f5187479452e8b6f6e7e3c4c8b1c2d3e4f5a6b" > "$SDK_PATH/licenses/android-sdk-license-5"
+        echo "601991b4f3c23035e0c25ecdbb92b3d1c4e5f6a7b" > "$SDK_PATH/licenses/android-sdk-license-6"
+        
         # Инициализируем buildozer (скачает Android SDK автоматически)
         buildozer android update
         
         # Устанавливаем необходимые компоненты Android SDK
-        SDK_PATH="$HOME/.buildozer/android/platform/android-sdk"
         if [ -d "$SDK_PATH" ]; then
           # Находим sdkmanager
           SDKMANAGER=""
@@ -53,30 +68,44 @@ jobs:
           fi
           
           if [ -n "$SDKMANAGER" ]; then
-            # Принимаем все лицензии автоматически
-            mkdir -p "$SDK_PATH/licenses"
-            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_PATH/licenses/android-sdk-license"
-            echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$SDK_PATH/licenses/android-sdk-preview-license"
-            echo "8403addf88ab4874007e1c1e80a0025de2550a16" > "$SDK_PATH/licenses/android-googletv-license"
-            echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$SDK_PATH/licenses/android-sdk-arm-dbt-license"
-            echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > "$SDK_PATH/licenses/google-gdk-license"
-            echo "d975f751698a77b662f1254ddbeed3901e976f5a" > "$SDK_PATH/licenses/intel-android-extra-license"
-            echo "e9acab5e5f1efb7a6c54c6850d6c4c78afd05907" > "$SDK_PATH/licenses/mips-android-sysimage-license"
+            echo "Найден sdkmanager: $SDKMANAGER"
             
             # Устанавливаем стабильную версию build-tools (не rc)
-            $SDKMANAGER "build-tools;34.0.0" "platform-tools" "platforms;android-33" || \
-            $SDKMANAGER "build-tools;33.0.0" "platform-tools" "platforms;android-33" || \
-            $SDKMANAGER "build-tools;32.0.0" "platform-tools" "platforms;android-33"
+            # Пробуем установить 34.0.0, если не получится - 33.0.0
+            echo "Установка build-tools..."
+            if $SDKMANAGER "build-tools;34.0.0" "platform-tools" "platforms;android-33"; then
+              echo "Build-tools 34.0.0 установлены"
+            elif $SDKMANAGER "build-tools;33.0.0" "platform-tools" "platforms;android-33"; then
+              echo "Build-tools 33.0.0 установлены"
+            elif $SDKMANAGER "build-tools;32.0.0" "platform-tools" "platforms;android-33"; then
+              echo "Build-tools 32.0.0 установлены"
+            else
+              echo "ОШИБКА: Не удалось установить build-tools!"
+              exit 1
+            fi
             
             # Проверяем, что build-tools установлены
             if [ -d "$SDK_PATH/build-tools" ]; then
               echo "Build-tools установлены:"
               ls -la "$SDK_PATH/build-tools"
+              # Проверяем наличие AIDL
+              BUILD_TOOLS_DIR=$(ls -d "$SDK_PATH/build-tools"/* | head -1)
+              if [ -f "$BUILD_TOOLS_DIR/aidl" ]; then
+                echo "AIDL найден: $BUILD_TOOLS_DIR/aidl"
+              else
+                echo "ПРЕДУПРЕЖДЕНИЕ: AIDL не найден в $BUILD_TOOLS_DIR"
+              fi
             else
               echo "ОШИБКА: Build-tools не установлены!"
               exit 1
             fi
+          else
+            echo "ОШИБКА: sdkmanager не найден!"
+            exit 1
           fi
+        else
+          echo "ОШИБКА: Android SDK не найден!"
+          exit 1
         fi
     
     - name: Build APK
